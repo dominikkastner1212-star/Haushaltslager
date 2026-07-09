@@ -14,6 +14,7 @@ Lokale Web-App zum Erfassen und Verwalten von Lebensmittelvorräten.
 - JSON-Import und -Export
 - Produktdaten und Bilder per Barcode über Open Food Facts
 - PWA: installierbar auf Smartphone, Tablet und Desktop
+- Optionaler Supabase-Sync mit E-Mail/Passwort und Haushaltsdatenbank
 
 ## Start
 
@@ -27,7 +28,7 @@ Dann im Browser öffnen:
 http://127.0.0.1:4173
 ```
 
-Die Daten bleiben lokal im Browser über `localStorage`. Kamera-Scan und Browser-Benachrichtigungen funktionieren am zuverlässigsten über `localhost`.
+Die Daten bleiben lokal im Browser über `localStorage`. Wenn Supabase konfiguriert ist, synchronisiert die App nach dem Login denselben Zustand zusätzlich in Supabase. Kamera-Scan und Browser-Benachrichtigungen funktionieren am zuverlässigsten über `localhost`.
 
 ## Deployment auf Render
 
@@ -56,6 +57,19 @@ https://haushaltslager.onrender.com
 ```
 
 Diese Adresse kannst du auf Smartphone und Desktop als PWA installieren.
+
+## Supabase Sync
+
+Die App kann ohne Supabase weiter lokal genutzt werden. Für Online-Sync:
+
+1. Supabase-Projekt anlegen oder auswählen.
+2. Im Supabase SQL Editor den Inhalt aus `supabase/schema.sql` ausführen.
+3. In Render diese Environment Variables setzen:
+   - `SUPABASE_URL`: Project URL aus Supabase
+   - `SUPABASE_ANON_KEY`: öffentlicher Anon/Publishable Key aus Supabase
+4. Render neu deployen.
+
+Die Datenbank nutzt Row Level Security. Der Browser bekommt nur den öffentlichen Key; `service_role` oder Secret Keys dürfen nicht in Render/Frontend für diese App gesetzt werden.
 
 ## Barcode-Daten und Bilder
 

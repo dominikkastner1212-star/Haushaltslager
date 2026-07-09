@@ -1,4 +1,6 @@
 const STORAGE_KEY = "haushaltslager-state-v1";
+const SYNC_STORAGE_KEY = "haushaltslager-sync-session-v1";
+const SYNC_META_STORAGE_KEY = "haushaltslager-sync-meta-v1";
 const PRODUCT_FIELDS = [
   "code",
   "product_name",
@@ -20,6 +22,7 @@ const icons = {
   cart: '<svg viewBox="0 0 24 24"><path d="M6 6h15l-2 8H8L6 3H3"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>',
   chart: '<svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 3 5-7"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="m20 6-11 11-5-5"/></svg>',
+  cloud: '<svg viewBox="0 0 24 24"><path d="M17.5 19H8a5 5 0 1 1 1.2-9.85A6.5 6.5 0 0 1 21 13.5 3.5 3.5 0 0 1 17.5 19Z"/></svg>',
   copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>',
   download: '<svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>',
   filter: '<svg viewBox="0 0 24 24"><path d="M4 5h16"/><path d="M7 12h10"/><path d="M10 19h4"/></svg>',
@@ -44,6 +47,9 @@ let scannerStream = null;
 let scannerTimer = null;
 let lookupController = null;
 let deferredInstallPrompt = null;
+let remoteSaveTimer = null;
+let syncState = createSyncState();
+let syncMeta = loadSyncMeta();
 
 const els = {};
 
@@ -53,6 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
   registerServiceWorker();
   renderAll();
+  initSync();
 });
 
 function cacheElements() {
@@ -100,6 +107,15 @@ function cacheElements() {
     shoppingItems: document.querySelector("#shopping-items"),
     importFile: document.querySelector("#import-file"),
     installAppButton: document.querySelector("#install-app-button"),
+    syncForm: document.querySelector("#sync-form"),
+    syncEmail: document.querySelector("#sync-email"),
+    syncPassword: document.querySelector("#sync-password"),
+    syncStatusBadge: document.querySelector("#sync-status-badge"),
+    syncMessage: document.querySelector("#sync-message"),
+    syncAccount: document.querySelector("#sync-account"),
+    syncUser: document.querySelector("#sync-user"),
+    syncHousehold: document.querySelector("#sync-household"),
+    syncLast: document.querySelector("#sync-last"),
     toastRegion: document.querySelector("#toast-region")
   });
 }
@@ -139,6 +155,10 @@ function bindEvents() {
   els.consumeForm.addEventListener("submit", handleConsumeSubmit);
   els.locationForm.addEventListener("submit", handleLocationSubmit);
   els.importFile.addEventListener("change", handleImport);
+  els.syncForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    signInSync();
+  });
 
   document.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
@@ -242,6 +262,18 @@ function handleAction(action) {
       break;
     case "copy-shopping":
       copyShoppingList();
+      break;
+    case "sync-sign-in":
+      signInSync();
+      break;
+    case "sync-sign-up":
+      signUpSync();
+      break;
+    case "sync-sign-out":
+      signOutSync();
+      break;
+    case "sync-now":
+      syncNow();
       break;
     case "reset-demo":
       resetDemoData();
@@ -576,6 +608,408 @@ async function installPwa() {
   if (choice.outcome === "accepted") {
     toast("App wird installiert", "Haushaltslager kann danach wie eine normale App geöffnet werden.");
   }
+}
+
+async function initSync() {
+  syncState = createSyncState();
+  renderSyncPanel();
+  if (!syncState.configured || !syncState.session?.accessToken) return;
+
+  try {
+    syncState.syncing = true;
+    renderSyncPanel();
+    await ensureFreshSession();
+    syncState.user = await getAuthUser();
+    await ensureHousehold();
+    await reconcileRemoteState();
+    setSyncMessage("Verbunden.", "success");
+  } catch (error) {
+    setSyncMessage(error.message || "Sync nicht erreichbar.", "warn");
+  } finally {
+    syncState.syncing = false;
+    renderSyncPanel();
+  }
+}
+
+async function signInSync() {
+  if (!assertSyncConfigured()) return;
+  const credentials = readSyncCredentials();
+  if (!credentials) return;
+  try {
+    syncState.syncing = true;
+    renderSyncPanel();
+    const payload = await authRequest("/auth/v1/token?grant_type=password", {
+      method: "POST",
+      body: credentials
+    });
+    setSession(payload);
+    syncState.user = await getAuthUser();
+    await ensureHousehold();
+    await reconcileRemoteState();
+    els.syncPassword.value = "";
+    toast("Sync aktiv", "Dein Lager ist mit Supabase verbunden.");
+    setSyncMessage("Verbunden.", "success");
+  } catch (error) {
+    setSyncMessage(error.message || "Anmeldung fehlgeschlagen.", "danger");
+    toast("Sync fehlgeschlagen", error.message || "Anmeldung fehlgeschlagen.", "danger");
+  } finally {
+    syncState.syncing = false;
+    renderSyncPanel();
+  }
+}
+
+async function signUpSync() {
+  if (!assertSyncConfigured()) return;
+  const credentials = readSyncCredentials();
+  if (!credentials) return;
+  try {
+    syncState.syncing = true;
+    renderSyncPanel();
+    const payload = await authRequest("/auth/v1/signup", {
+      method: "POST",
+      body: credentials
+    });
+    if (!payload.access_token) {
+      setSyncMessage("Registriert. E-Mail-Bestätigung prüfen.", "warn");
+      toast("Registrierung erstellt", "Prüfe deine E-Mail, falls Supabase eine Bestätigung verlangt.", "warn");
+      return;
+    }
+    setSession(payload);
+    syncState.user = await getAuthUser();
+    await ensureHousehold();
+    await pushRemoteState(true);
+    els.syncPassword.value = "";
+    toast("Sync aktiv", "Dein Konto wurde erstellt.");
+    setSyncMessage("Verbunden.", "success");
+  } catch (error) {
+    setSyncMessage(error.message || "Registrierung fehlgeschlagen.", "danger");
+    toast("Registrierung fehlgeschlagen", error.message || "Supabase hat die Anfrage abgelehnt.", "danger");
+  } finally {
+    syncState.syncing = false;
+    renderSyncPanel();
+  }
+}
+
+async function signOutSync() {
+  try {
+    if (syncState.session?.accessToken) {
+      await authRequest("/auth/v1/logout", { method: "POST", auth: true });
+    }
+  } catch (error) {
+    // Lokales Abmelden ist wichtiger als ein nicht erreichbarer Logout-Endpoint.
+  }
+  clearSyncSession();
+  setSyncMessage(syncState.configured ? "Nur lokal gespeichert." : "Supabase nicht konfiguriert.", "warn");
+  toast("Abgemeldet", "Neue Änderungen bleiben lokal.");
+  renderSyncPanel();
+}
+
+async function syncNow() {
+  if (!assertSyncConfigured() || !syncState.user) return;
+  try {
+    syncState.syncing = true;
+    renderSyncPanel();
+    await ensureFreshSession();
+    await ensureHousehold();
+    await pushRemoteState(true);
+  } catch (error) {
+    setSyncMessage(error.message || "Synchronisierung fehlgeschlagen.", "danger");
+    toast("Sync fehlgeschlagen", error.message || "Supabase ist nicht erreichbar.", "danger");
+  } finally {
+    syncState.syncing = false;
+    renderSyncPanel();
+  }
+}
+
+function createSyncState() {
+  const config = getSupabaseConfig();
+  return {
+    config,
+    configured: Boolean(config.url && config.key),
+    session: loadSyncSession(),
+    user: null,
+    householdId: "",
+    householdName: "",
+    syncing: false,
+    pendingSave: false,
+    message: config.url && config.key ? "Bereit." : "Supabase nicht konfiguriert.",
+    messageType: config.url && config.key ? "success" : "warn"
+  };
+}
+
+function getSupabaseConfig() {
+  const config = window.HAUSHALTSLAGER_CONFIG || {};
+  return {
+    url: String(config.supabaseUrl || "").replace(/\/+$/, ""),
+    key: String(config.supabaseAnonKey || config.supabasePublishableKey || "")
+  };
+}
+
+function readSyncCredentials() {
+  const email = els.syncEmail.value.trim();
+  const password = els.syncPassword.value;
+  if (!email || !password) {
+    setSyncMessage("E-Mail und Passwort ausfüllen.", "warn");
+    return null;
+  }
+  if (password.length < 6) {
+    setSyncMessage("Passwort braucht mindestens 6 Zeichen.", "warn");
+    return null;
+  }
+  return { email, password };
+}
+
+function assertSyncConfigured() {
+  if (syncState.configured) return true;
+  setSyncMessage("SUPABASE_URL und SUPABASE_ANON_KEY fehlen.", "danger");
+  toast("Supabase fehlt", "Setze die Render-Umgebungsvariablen und deploye neu.", "danger");
+  return false;
+}
+
+async function ensureHousehold() {
+  if (!syncState.user?.id) throw new Error("Kein Supabase-Benutzer geladen.");
+  if (syncState.householdId) return syncState.householdId;
+
+  const userId = encodeURIComponent(syncState.user.id);
+  const households = await restRequest(`/rest/v1/households?owner_id=eq.${userId}&select=id,name,updated_at&limit=1`);
+  let household = households?.[0];
+  if (!household) {
+    const created = await restRequest("/rest/v1/households", {
+      method: "POST",
+      body: { name: "Mein Haushalt", owner_id: syncState.user.id },
+      headers: { Prefer: "return=representation" }
+    });
+    household = created?.[0];
+  }
+  if (!household?.id) throw new Error("Haushalt konnte nicht angelegt werden.");
+
+  await restRequest("/rest/v1/household_members?on_conflict=household_id,user_id", {
+    method: "POST",
+    body: { household_id: household.id, user_id: syncState.user.id, role: "owner" },
+    headers: { Prefer: "resolution=merge-duplicates" }
+  });
+
+  syncState.householdId = household.id;
+  syncState.householdName = household.name || "Mein Haushalt";
+  return syncState.householdId;
+}
+
+async function reconcileRemoteState() {
+  const row = await fetchRemoteState();
+  if (!row) {
+    await pushRemoteState(false);
+    return;
+  }
+
+  const remoteUpdatedAt = row.updated_at || nowIso();
+  const remoteLooksNewer = !syncMeta.localUpdatedAt || new Date(remoteUpdatedAt) >= new Date(syncMeta.localUpdatedAt);
+  const loadRemote = remoteLooksNewer || window.confirm("Supabase-Daten laden und lokale Daten ersetzen?");
+
+  if (loadRemote) {
+    state = normalizeState(row.state || {});
+    syncMeta.localUpdatedAt = remoteUpdatedAt;
+    syncMeta.remoteUpdatedAt = remoteUpdatedAt;
+    syncMeta.lastSyncAt = remoteUpdatedAt;
+    saveSyncMeta();
+    persist({ syncRemote: false });
+    renderAll();
+    toast("Sync geladen", `${state.items.length} Artikel wurden aus Supabase geladen.`);
+  } else {
+    await pushRemoteState(false);
+  }
+}
+
+async function fetchRemoteState() {
+  if (!syncState.householdId) return null;
+  const householdId = encodeURIComponent(syncState.householdId);
+  const rows = await restRequest(`/rest/v1/pantry_states?household_id=eq.${householdId}&select=state,updated_at&limit=1`);
+  return rows?.[0] || null;
+}
+
+function scheduleRemoteSave(delay = 900) {
+  if (!syncState.configured || !syncState.user || !syncState.householdId) return;
+  if (syncState.syncing) {
+    syncState.pendingSave = true;
+    return;
+  }
+  window.clearTimeout(remoteSaveTimer);
+  remoteSaveTimer = window.setTimeout(() => {
+    pushRemoteState(false).catch((error) => {
+      setSyncMessage(error.message || "Automatischer Sync fehlgeschlagen.", "warn");
+    });
+  }, delay);
+}
+
+async function pushRemoteState(manual) {
+  if (!syncState.configured || !syncState.session?.accessToken || !syncState.householdId) return;
+  const hadPendingSave = syncState.pendingSave;
+  syncState.pendingSave = false;
+  try {
+    await ensureFreshSession();
+    syncState.syncing = true;
+    renderSyncPanel();
+    const updatedAt = nowIso();
+    await restRequest("/rest/v1/pantry_states?on_conflict=household_id", {
+      method: "POST",
+      body: {
+        household_id: syncState.householdId,
+        state: normalizeState(state),
+        updated_at: updatedAt
+      },
+      headers: { Prefer: "resolution=merge-duplicates,return=representation" }
+    });
+    syncMeta.localUpdatedAt = updatedAt;
+    syncMeta.remoteUpdatedAt = updatedAt;
+    syncMeta.lastSyncAt = updatedAt;
+    saveSyncMeta();
+    setSyncMessage("Synchronisiert.", "success");
+    if (manual) toast("Synchronisiert", "Supabase ist auf dem aktuellen Stand.");
+  } finally {
+    syncState.syncing = false;
+    renderSyncPanel();
+    if (hadPendingSave || syncState.pendingSave) {
+      syncState.pendingSave = false;
+      scheduleRemoteSave(80);
+    }
+  }
+}
+
+async function getAuthUser() {
+  const user = await authRequest("/auth/v1/user", { method: "GET", auth: true });
+  if (!user?.id) throw new Error("Supabase-Session ungültig.");
+  return user;
+}
+
+async function ensureFreshSession() {
+  const session = syncState.session;
+  if (!session?.accessToken) throw new Error("Nicht angemeldet.");
+  const expiresAt = Number(session.expiresAt || 0) * 1000;
+  if (expiresAt && expiresAt - Date.now() > 60000) return session;
+  if (!session.refreshToken) throw new Error("Session abgelaufen.");
+  const payload = await authRequest("/auth/v1/token?grant_type=refresh_token", {
+    method: "POST",
+    body: { refresh_token: session.refreshToken }
+  });
+  setSession(payload);
+  return syncState.session;
+}
+
+async function authRequest(path, options = {}) {
+  const headers = {
+    apikey: syncState.config.key,
+    "Content-Type": "application/json",
+    ...(options.headers || {})
+  };
+  if (options.auth) headers.Authorization = `Bearer ${syncState.session?.accessToken || ""}`;
+  const response = await fetch(`${syncState.config.url}${path}`, {
+    method: options.method || "POST",
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+  return parseSupabaseResponse(response);
+}
+
+async function restRequest(path, options = {}) {
+  await ensureFreshSession();
+  const headers = {
+    apikey: syncState.config.key,
+    Authorization: `Bearer ${syncState.session.accessToken}`,
+    Accept: "application/json",
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...(options.headers || {})
+  };
+  const response = await fetch(`${syncState.config.url}${path}`, {
+    method: options.method || "GET",
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+  return parseSupabaseResponse(response);
+}
+
+async function parseSupabaseResponse(response) {
+  const text = await response.text();
+  const payload = text ? tryParseJson(text) : null;
+  if (!response.ok) {
+    const message = payload?.msg || payload?.message || payload?.error_description || payload?.error || response.statusText;
+    throw new Error(message);
+  }
+  return payload;
+}
+
+function setSession(payload) {
+  const accessToken = payload.access_token;
+  const refreshToken = payload.refresh_token;
+  if (!accessToken || !refreshToken) throw new Error("Supabase hat keine Session zurückgegeben.");
+  const expiresAt = payload.expires_at || Math.floor(Date.now() / 1000) + Number(payload.expires_in || 3600);
+  syncState.session = {
+    accessToken,
+    refreshToken,
+    expiresAt,
+    user: payload.user || null
+  };
+  localStorage.setItem(SYNC_STORAGE_KEY, JSON.stringify(syncState.session));
+}
+
+function loadSyncSession() {
+  try {
+    const session = JSON.parse(localStorage.getItem(SYNC_STORAGE_KEY) || "null");
+    return session?.accessToken ? session : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function clearSyncSession() {
+  localStorage.removeItem(SYNC_STORAGE_KEY);
+  window.clearTimeout(remoteSaveTimer);
+  syncState = createSyncState();
+}
+
+function loadSyncMeta() {
+  try {
+    const meta = JSON.parse(localStorage.getItem(SYNC_META_STORAGE_KEY) || "null");
+    return meta && typeof meta === "object" ? meta : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function saveSyncMeta() {
+  localStorage.setItem(SYNC_META_STORAGE_KEY, JSON.stringify(syncMeta));
+}
+
+function setSyncMessage(message, type = "success") {
+  syncState.message = message;
+  syncState.messageType = type;
+  renderSyncPanel();
+}
+
+function renderSyncPanel() {
+  if (!els.syncStatusBadge) return;
+  const online = Boolean(syncState.user);
+  const badge = !syncState.configured
+    ? "Fehlt"
+    : syncState.syncing
+      ? "Sync"
+      : online
+        ? "Online"
+        : "Lokal";
+  els.syncStatusBadge.textContent = badge;
+  els.syncStatusBadge.className = `badge ${online ? "" : "neutral"}`;
+  els.syncForm?.classList.toggle("is-hidden", online);
+  els.syncAccount?.classList.toggle("is-hidden", !online);
+  if (els.syncUser) els.syncUser.textContent = syncState.user?.email || "-";
+  if (els.syncHousehold) els.syncHousehold.textContent = syncState.householdName || "-";
+  if (els.syncLast) els.syncLast.textContent = syncMeta.lastSyncAt ? formatDateTime(syncMeta.lastSyncAt) : "-";
+  if (els.syncMessage) {
+    els.syncMessage.textContent = syncState.message || "";
+    els.syncMessage.className = `field-hint sync-message ${syncState.messageType || ""}`;
+  }
+  document.querySelectorAll("[data-action='sync-sign-up'], [data-action='sync-now']").forEach((button) => {
+    button.disabled = !syncState.configured || syncState.syncing;
+  });
+  const submit = els.syncForm?.querySelector("button[type='submit']");
+  if (submit) submit.disabled = !syncState.configured || syncState.syncing;
 }
 
 function registerServiceWorker() {
@@ -1322,8 +1756,12 @@ function seedMovement(type, item, quantity, price, year, month, day) {
   };
 }
 
-function persist() {
+function persist(options = {}) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (options.syncRemote === false) return;
+  syncMeta.localUpdatedAt = nowIso();
+  saveSyncMeta();
+  scheduleRemoteSave();
 }
 
 function parseAmount(value) {
@@ -1345,6 +1783,16 @@ function formatMoney(value) {
 
 function formatDate(value) {
   return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatDateTime(value) {
+  return new Date(value).toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 function dateOffset(days) {
@@ -1372,6 +1820,14 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function tryParseJson(value) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return null;
+  }
 }
 
 function debounce(callback, wait) {

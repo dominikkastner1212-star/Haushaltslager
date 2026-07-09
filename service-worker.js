@@ -1,4 +1,4 @@
-const CACHE_NAME = "haushaltslager-v2";
+const CACHE_NAME = "haushaltslager-v3";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -28,6 +28,14 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
+
+  if (url.origin === self.location.origin && url.pathname === "/config.js") {
+    event.respondWith(fetch(request).catch(() => new Response("window.HAUSHALTSLAGER_CONFIG = {};", {
+      status: 200,
+      headers: { "Content-Type": "text/javascript; charset=utf-8" }
+    })));
+    return;
+  }
 
   if (url.origin === self.location.origin && url.pathname.startsWith("/api/")) {
     event.respondWith(fetch(request).catch(() => new Response(JSON.stringify({ found: false, offline: true }), {

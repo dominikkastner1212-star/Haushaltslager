@@ -31,6 +31,11 @@ const server = http.createServer(async (request, response) => {
   const url = new URL(request.url || "/", `http://${host}:${port}`);
   const productMatch = url.pathname.match(/^\/api\/product\/([^/]+)$/);
 
+  if (url.pathname === "/config.js") {
+    sendConfigScript(response);
+    return;
+  }
+
   if (productMatch) {
     await handleProductLookup(decodeURIComponent(productMatch[1]), response);
     return;
@@ -121,4 +126,16 @@ function sendJson(response, status, payload) {
     "Cache-Control": "no-store"
   });
   response.end(JSON.stringify(payload));
+}
+
+function sendConfigScript(response) {
+  const payload = {
+    supabaseUrl: process.env.SUPABASE_URL || "",
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || ""
+  };
+  response.writeHead(200, {
+    "Content-Type": "text/javascript; charset=utf-8",
+    "Cache-Control": "no-store"
+  });
+  response.end(`window.HAUSHALTSLAGER_CONFIG = ${JSON.stringify(payload)};`);
 }

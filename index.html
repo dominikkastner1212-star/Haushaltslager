@@ -69,6 +69,10 @@
             <span data-icon="bell"></span>
             <span>Benachrichtigungen</span>
           </button>
+          <button class="nav-item" type="button" data-scroll="sync-card">
+            <span data-icon="cloud"></span>
+            <span>Sync</span>
+          </button>
           <button class="nav-item danger" type="button" data-action="reset-demo">
             <span data-icon="refresh"></span>
             <span>Demo laden</span>
@@ -280,6 +284,60 @@
           </div>
 
           <aside class="right-rail" aria-label="Benachrichtigungen und Zusammenfassung">
+            <section id="sync-card" class="panel sync-panel">
+              <div class="panel-heading compact">
+                <h2>Sync</h2>
+                <span id="sync-status-badge" class="badge neutral">Lokal</span>
+              </div>
+              <form id="sync-form" class="sync-form">
+                <label>
+                  <span>E-Mail</span>
+                  <input id="sync-email" type="email" autocomplete="email" />
+                </label>
+                <label>
+                  <span>Passwort</span>
+                  <input id="sync-password" type="password" autocomplete="current-password" minlength="6" />
+                </label>
+                <div class="form-actions sync-actions">
+                  <button class="button primary" type="submit">
+                    <span data-icon="cloud"></span>
+                    <span>Anmelden</span>
+                  </button>
+                  <button class="button" type="button" data-action="sync-sign-up">
+                    <span data-icon="plus"></span>
+                    <span>Registrieren</span>
+                  </button>
+                </div>
+              </form>
+              <div id="sync-account" class="sync-account is-hidden">
+                <dl>
+                  <div class="summary-row">
+                    <dt>Konto</dt>
+                    <dd id="sync-user">-</dd>
+                  </div>
+                  <div class="summary-row">
+                    <dt>Haushalt</dt>
+                    <dd id="sync-household">-</dd>
+                  </div>
+                  <div class="summary-row">
+                    <dt>Stand</dt>
+                    <dd id="sync-last">-</dd>
+                  </div>
+                </dl>
+                <div class="form-actions sync-actions">
+                  <button class="button primary" type="button" data-action="sync-now">
+                    <span data-icon="refresh"></span>
+                    <span>Sync</span>
+                  </button>
+                  <button class="button" type="button" data-action="sync-sign-out">
+                    <span data-icon="x"></span>
+                    <span>Abmelden</span>
+                  </button>
+                </div>
+              </div>
+              <p id="sync-message" class="field-hint sync-message">Nur lokal gespeichert.</p>
+            </section>
+
             <section class="panel notification-panel">
               <div class="panel-heading compact">
                 <h2>Benachrichtigungen</h2>
@@ -367,6 +425,7 @@
 
     <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 
+    <script src="config.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

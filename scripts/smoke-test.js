@@ -82,6 +82,7 @@ async function main() {
     const hasCharts = document.querySelector("#consumption-chart .bar-fill") && document.querySelector("#spending-chart svg");
     const hasAlerts = Number(document.querySelector("#notification-count")?.textContent || "0") >= 1;
     const hasPwa = Boolean(document.querySelector("link[rel='manifest']")) && "serviceWorker" in navigator;
+    const hasSyncPanel = document.querySelector("#sync-card") && document.querySelector("#sync-status-badge")?.textContent.length > 0;
 
     return {
       title: document.title,
@@ -91,6 +92,7 @@ async function main() {
       hasCharts: Boolean(hasCharts),
       hasAlerts,
       hasPwa,
+      hasSyncPanel: Boolean(hasSyncPanel),
       itemCount: document.querySelector("#item-count")?.textContent || ""
     };
   })()`);
@@ -121,7 +123,7 @@ async function main() {
   cleanup();
 
   if (exceptions.length) throw new Error(`Browser-Fehler: ${exceptions.join("; ")}`);
-  if (!smoke.added || !smoke.consumed || !smoke.hasImage || !smoke.hasCharts || !smoke.hasAlerts || !smoke.hasPwa) {
+  if (!smoke.added || !smoke.consumed || !smoke.hasImage || !smoke.hasCharts || !smoke.hasAlerts || !smoke.hasPwa || !smoke.hasSyncPanel) {
     throw new Error(`Smoke-Test fehlgeschlagen: ${JSON.stringify(smoke)}`);
   }
   if (mobile.documentWidth > mobile.innerWidth + 1 || mobile.bodyWidth > mobile.innerWidth + 1) {

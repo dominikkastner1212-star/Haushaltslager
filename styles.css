@@ -801,6 +801,44 @@ button:focus-visible {
   gap: 18px;
 }
 
+.sync-form,
+.sync-account {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.sync-account dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.sync-actions {
+  justify-content: stretch;
+}
+
+.sync-actions .button {
+  flex: 1 1 130px;
+}
+
+.sync-message {
+  margin: 0;
+  padding: 0 14px 14px;
+}
+
+.sync-message.success {
+  color: var(--accent-strong);
+}
+
+.sync-message.warn {
+  color: var(--amber);
+}
+
+.sync-message.danger {
+  color: var(--red);
+}
+
 .notification-list {
   display: grid;
   gap: 10px;
