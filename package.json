@@ -1,0 +1,13 @@
+{
+  "name": "haushaltslager",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lokale Web-App zum Verwalten von Lebensmittelvorräten, Lagerorten, Preisen und Verbrauch.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node scripts/smoke-test.js"
+  }
+}

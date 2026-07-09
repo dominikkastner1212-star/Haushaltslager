@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#167a54" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Haushaltslager" />
+    <title>Haushaltslager</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navigation">
+        <div class="brand">
+          <button class="icon-button menu-button" type="button" aria-label="Menü">
+            <span data-icon="menu"></span>
+          </button>
+          <strong>Haushaltslager</strong>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-item is-active" type="button" data-view="lager">
+            <span data-icon="archive"></span>
+            <span>Lager</span>
+          </button>
+          <button class="nav-item" type="button" data-view="scan">
+            <span data-icon="barcode"></span>
+            <span>Scan</span>
+          </button>
+          <button class="nav-item" type="button" data-view="verbrauch">
+            <span data-icon="cart"></span>
+            <span>Verbrauch</span>
+          </button>
+          <button class="nav-item" type="button" data-view="preise">
+            <span data-icon="tag"></span>
+            <span>Preise</span>
+          </button>
+          <button class="nav-item" type="button" data-view="orte">
+            <span data-icon="map"></span>
+            <span>Orte</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-section">
+          <button class="nav-item" type="button" data-scroll="shopping-list">
+            <span data-icon="list"></span>
+            <span>Einkaufsliste</span>
+          </button>
+          <button class="nav-item" type="button" data-action="export">
+            <span data-icon="download"></span>
+            <span>Export</span>
+          </button>
+          <label class="import-label nav-item" for="import-file">
+            <span data-icon="upload"></span>
+            <span>Import</span>
+          </label>
+          <input id="import-file" class="sr-only" type="file" accept="application/json" />
+        </div>
+
+        <div class="sidebar-footer">
+          <button id="install-app-button" class="nav-item is-hidden" type="button" data-action="install-pwa">
+            <span data-icon="download"></span>
+            <span>App installieren</span>
+          </button>
+          <button class="nav-item" type="button" data-action="request-notifications">
+            <span data-icon="bell"></span>
+            <span>Benachrichtigungen</span>
+          </button>
+          <button class="nav-item danger" type="button" data-action="reset-demo">
+            <span data-icon="refresh"></span>
+            <span>Demo laden</span>
+          </button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="search-wrap">
+            <span data-icon="search"></span>
+            <input id="search-input" type="search" placeholder="Suche nach Produkten, Marken, Orten ..." autocomplete="off" />
+            <kbd>⌘ K</kbd>
+          </div>
+
+          <div class="topbar-actions">
+            <button class="button primary" type="button" data-scroll="intake-card">
+              <span data-icon="plus"></span>
+              <span>Artikel hinzufügen</span>
+            </button>
+            <button class="button" type="button" data-action="open-consume">
+              <span data-icon="minus-circle"></span>
+              <span>Verbrauch erfassen</span>
+            </button>
+            <button class="button" type="button" data-scroll="analytics-card">
+              <span data-icon="chart"></span>
+              <span>Berichte</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="content-grid">
+          <div class="work-area">
+            <section id="intake-card" class="panel intake-panel" data-section="scan">
+              <div class="panel-heading">
+                <div>
+                  <h1>Artikel scannen / erfassen</h1>
+                  <p>Produktdaten kommen aus Open Food Facts und deinem lokalen Katalog.</p>
+                </div>
+                <button class="button" type="button" data-action="start-scan">
+                  <span data-icon="camera"></span>
+                  <span>Kamera scannen</span>
+                </button>
+              </div>
+
+              <form id="intake-form" class="form-grid">
+                <label>
+                  <span>Barcode</span>
+                  <div class="input-with-button">
+                    <input id="barcode" name="barcode" inputmode="numeric" autocomplete="off" placeholder="Barcode eingeben" />
+                    <button class="icon-button" type="button" data-action="lookup-barcode" aria-label="Barcode übernehmen">
+                      <span data-icon="barcode"></span>
+                    </button>
+                  </div>
+                  <small id="lookup-status" class="field-hint">Noch kein Barcode abgefragt.</small>
+                </label>
+                <label class="wide">
+                  <span>Produkt</span>
+                  <input id="product" name="product" required autocomplete="off" placeholder="Produktname eingeben" />
+                </label>
+                <label>
+                  <span>Menge</span>
+                  <input id="quantity" name="quantity" type="number" step="0.01" min="0.01" value="1" required />
+                </label>
+                <label>
+                  <span>Einheit</span>
+                  <select id="unit" name="unit">
+                    <option>Stück</option>
+                    <option>Packung</option>
+                    <option>Dose</option>
+                    <option>Glas</option>
+                    <option>Flasche</option>
+                    <option>Becher</option>
+                    <option>kg</option>
+                    <option>g</option>
+                    <option>L</option>
+                    <option>ml</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Ort</span>
+                  <select id="location" name="location" required></select>
+                </label>
+                <label>
+                  <span>MHD</span>
+                  <input id="expires" name="expires" type="date" />
+                </label>
+                <label>
+                  <span>Preis</span>
+                  <div class="money-input">
+                    <input id="price" name="price" type="number" step="0.01" min="0" placeholder="0,00" />
+                    <span>€</span>
+                  </div>
+                </label>
+                <label>
+                  <span>Mindestbestand</span>
+                  <input id="minStock" name="minStock" type="number" step="0.01" min="0" value="1" />
+                </label>
+                <label class="image-field wide">
+                  <span>Bild</span>
+                  <div class="image-input">
+                    <div id="product-image-preview" class="product-thumb placeholder" aria-hidden="true">?</div>
+                    <input id="imageUrl" name="imageUrl" type="url" autocomplete="off" placeholder="Bild-URL automatisch oder manuell" />
+                  </div>
+                  <small class="field-hint">Falls Open Food Facts kein Bild hat, bleibt ein Platzhalter sichtbar.</small>
+                </label>
+                <label class="photo-field">
+                  <span>Foto</span>
+                  <input id="imageFile" type="file" accept="image/*" capture="environment" />
+                  <small class="field-hint">Optional direkt aufnehmen; wird lokal gespeichert.</small>
+                </label>
+
+                <div class="form-actions">
+                  <button class="button primary" type="submit">
+                    <span data-icon="check"></span>
+                    <span>Zum Lager hinzufügen</span>
+                  </button>
+                  <button class="button" type="reset">Eingabe leeren</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="panel inventory-panel" data-section="lager">
+              <div class="panel-toolbar">
+                <div>
+                  <h2>Lagerbestand nach Ort</h2>
+                  <span id="item-count" class="counter">0 Artikel</span>
+                </div>
+                <div class="toolbar-actions">
+                  <label class="compact-select">
+                    <span>Gruppieren</span>
+                    <select id="group-by">
+                      <option value="location">Ort</option>
+                      <option value="status">Status</option>
+                      <option value="product">Produkt</option>
+                    </select>
+                  </label>
+                  <button class="button" type="button" data-action="toggle-low-only">
+                    <span data-icon="filter"></span>
+                    <span id="low-only-label">Filter</span>
+                  </button>
+                </div>
+              </div>
+              <div id="inventory-list" class="inventory-list"></div>
+            </section>
+
+            <section id="analytics-card" class="analytics-grid" data-section="verbrauch">
+              <article class="panel chart-panel">
+                <div class="panel-toolbar">
+                  <div>
+                    <h2>Verbrauch pro Monat</h2>
+                    <span id="consumption-summary" class="muted"></span>
+                  </div>
+                  <div class="segmented" role="group" aria-label="Verbrauchseinheit">
+                    <button class="is-active" type="button" data-metric="quantity">Menge</button>
+                    <button type="button" data-metric="spend">€</button>
+                  </div>
+                </div>
+                <div id="consumption-chart" class="bar-chart" aria-label="Monatlicher Verbrauch"></div>
+              </article>
+
+              <article class="panel chart-panel" data-section="preise">
+                <div class="panel-toolbar">
+                  <div>
+                    <h2>Ausgaben pro Monat</h2>
+                    <span id="spending-summary" class="muted"></span>
+                  </div>
+                  <label class="compact-select">
+                    <span>Jahr</span>
+                    <select id="year-select"></select>
+                  </label>
+                </div>
+                <div id="spending-chart" class="line-chart" aria-label="Monatliche Ausgaben"></div>
+              </article>
+            </section>
+
+            <section class="management-grid">
+              <article class="panel" data-section="orte">
+                <div class="panel-toolbar">
+                  <div>
+                    <h2>Lagerorte</h2>
+                    <span class="muted">Eigene Orte anlegen und Bestand prüfen.</span>
+                  </div>
+                </div>
+                <form id="location-form" class="inline-form">
+                  <input id="location-name" placeholder="Neuer Ort, z. B. Kellerregal" autocomplete="off" />
+                  <button class="button primary" type="submit">
+                    <span data-icon="plus"></span>
+                    <span>Ort hinzufügen</span>
+                  </button>
+                </form>
+                <div id="location-list" class="location-list"></div>
+              </article>
+
+              <article id="shopping-list" class="panel" data-section="verbrauch">
+                <div class="panel-toolbar">
+                  <div>
+                    <h2>Einkaufsliste</h2>
+                    <span class="muted">Automatisch aus Mindestbeständen erzeugt.</span>
+                  </div>
+                  <button class="button" type="button" data-action="copy-shopping">
+                    <span data-icon="copy"></span>
+                    <span>Kopieren</span>
+                  </button>
+                </div>
+                <div id="shopping-items" class="shopping-items"></div>
+              </article>
+            </section>
+          </div>
+
+          <aside class="right-rail" aria-label="Benachrichtigungen und Zusammenfassung">
+            <section class="panel notification-panel">
+              <div class="panel-heading compact">
+                <h2>Benachrichtigungen</h2>
+                <span id="notification-count" class="badge">0</span>
+              </div>
+              <div id="notifications" class="notification-list"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading compact">
+                <h2>Preisalarm</h2>
+                <span id="price-alert-count" class="badge neutral">0</span>
+              </div>
+              <div id="price-alerts" class="notification-list compact-list"></div>
+            </section>
+
+            <section class="panel summary-panel">
+              <div class="panel-heading compact">
+                <h2>Zusammenfassung</h2>
+                <span id="summary-year" class="muted"></span>
+              </div>
+              <dl id="summary-list"></dl>
+              <button class="button full" type="button" data-action="export">
+                <span data-icon="chart"></span>
+                <span>Jahresbericht exportieren</span>
+              </button>
+            </section>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="consume-dialog" class="dialog">
+      <form method="dialog" class="dialog-card" id="consume-form">
+        <div class="dialog-header">
+          <div>
+            <h2>Verbrauch erfassen</h2>
+            <p>Artikel entnehmen, Bestand aktualisieren und Verbrauch speichern.</p>
+          </div>
+          <button class="icon-button" type="button" data-action="close-consume" aria-label="Schließen">
+            <span data-icon="x"></span>
+          </button>
+        </div>
+
+        <label>
+          <span>Artikel</span>
+          <select id="consume-item" required></select>
+        </label>
+        <label>
+          <span>Menge entnehmen</span>
+          <input id="consume-quantity" type="number" min="0.01" step="0.01" value="1" required />
+        </label>
+        <label>
+          <span>Notiz</span>
+          <input id="consume-note" placeholder="z. B. gekocht, mitgenommen, abgelaufen" />
+        </label>
+        <menu class="dialog-actions">
+          <button class="button" type="button" data-action="close-consume">Abbrechen</button>
+          <button class="button primary" type="submit">
+            <span data-icon="minus-circle"></span>
+            <span>Entnahme buchen</span>
+          </button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="scanner-dialog" class="dialog scanner-dialog">
+      <div class="dialog-card">
+        <div class="dialog-header">
+          <div>
+            <h2>Barcode scannen</h2>
+            <p>Barcode in den Rahmen halten. Falls die Kamera nicht verfügbar ist, manuell eingeben.</p>
+          </div>
+          <button class="icon-button" type="button" data-action="close-scan" aria-label="Schließen">
+            <span data-icon="x"></span>
+          </button>
+        </div>
+        <div class="scanner-frame">
+          <video id="scanner-video" playsinline muted></video>
+          <div class="scanner-guide"></div>
+        </div>
+        <p id="scanner-status" class="muted">Scanner bereit.</p>
+      </div>
+    </dialog>
+
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

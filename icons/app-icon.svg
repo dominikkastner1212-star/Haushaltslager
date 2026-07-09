@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Haushaltslager">
+  <rect width="512" height="512" rx="96" fill="#167a54"/>
+  <path d="M144 154h224v228a28 28 0 0 1-28 28H172a28 28 0 0 1-28-28V154Z" fill="#ffffff"/>
+  <path d="M180 154v-28a24 24 0 0 1 24-24h104a24 24 0 0 1 24 24v28" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round"/>
+  <path d="M192 226h128M192 276h128M192 326h84" fill="none" stroke="#167a54" stroke-width="24" stroke-linecap="round"/>
+  <circle cx="344" cy="326" r="24" fill="#f5b84b"/>
+</svg>

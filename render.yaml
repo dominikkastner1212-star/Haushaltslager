@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: haushaltslager
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22
